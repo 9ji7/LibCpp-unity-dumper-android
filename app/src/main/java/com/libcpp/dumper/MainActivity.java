@@ -70,6 +70,9 @@ public class MainActivity extends AppCompatActivity {
     private ActivityResultLauncher<String> requestPermissionLauncher;
     private ActivityResultLauncher<Intent> manageStorageLauncher;
 
+    // Native library loaded flag
+    private boolean nativeLibraryLoaded = false;
+
     // Executor for background tasks
     private ExecutorService executorService = Executors.newSingleThreadExecutor();
 
@@ -78,11 +81,31 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        // Check if native library is loaded
+        checkNativeLibrary();
+        
         initViews();
         initFilePickers();
         initPermissionLaunchers();
         checkAndRequestStoragePermission();
         setupClickListeners();
+    }
+
+    private void checkNativeLibrary() {
+        try {
+            // Try calling a native method to verify library is loaded
+            String version = getUnityVersion();
+            if (version != null) {
+                nativeLibraryLoaded = true;
+                Log.i(TAG, "Native library verified: " + version);
+            }
+        } catch (UnsatisfiedLinkError e) {
+            Log.e(TAG, "Native library NOT loaded: " + e.getMessage());
+            nativeLibraryLoaded = false;
+        } catch (Exception e) {
+            Log.w(TAG, "Native library check failed: " + e.getMessage());
+            nativeLibraryLoaded = false;
+        }
     }
 
     private void initViews() {
@@ -99,6 +122,9 @@ public class MainActivity extends AppCompatActivity {
         tvStatus = findViewById(R.id.tvStatus);
         tvOutputPath = findViewById(R.id.tvOutputPath);
         progressBar = findViewById(R.id.progressBar);
+
+        // Update button state based on native library
+        updateStartButtonState();
     }
 
     private void initFilePickers() {
@@ -148,6 +174,7 @@ public class MainActivity extends AppCompatActivity {
                     tvStatus.setText("Storage permission denied - dump may fail");
                     tvStatus.setTextColor(getColor(R.color.colorError));
                 }
+                updateStartButtonState();
             }
         );
 
@@ -163,6 +190,7 @@ public class MainActivity extends AppCompatActivity {
                         tvStatus.setTextColor(getColor(R.color.colorError));
                     }
                 }
+                updateStartButtonState();
             }
         );
     }
@@ -208,19 +236,46 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setupClickListeners() {
-        btnSelectSoFile.setOnClickListener(v -> openFilePicker(soFilePickerLauncher, "application/octet-stream", "Select libil2cpp.so"));
+        btnSelectSoFile.setOnClickListener(v -> {
+            Log.d(TAG, "Select SO file clicked");
+            openFilePicker(soFilePickerLauncher, "application/octet-stream", "Select libil2cpp.so");
+        });
 
-        btnSelectMetadataFile.setOnClickListener(v -> openFilePicker(metadataFilePickerLauncher, "application/octet-stream", "Select global-metadata.dat"));
+        btnSelectMetadataFile.setOnClickListener(v -> {
+            Log.d(TAG, "Select Metadata file clicked");
+            openFilePicker(metadataFilePickerLauncher, "application/octet-stream", "Select global-metadata.dat");
+        });
 
         btnStartDump.setOnClickListener(v -> {
+            Log.d(TAG, "Start Dump clicked, nativeLibraryLoaded=" + nativeLibraryLoaded);
             // Re-check permission before dumping
             if (hasStoragePermission()) {
-                startDump();
+                if (nativeLibraryLoaded) {
+                    startDump();
+                } else {
+                    Toast.makeText(this, "Native library not loaded! Check logs.", Toast.LENGTH_LONG).show();
+                    checkNativeLibrary();
+                    updateStartButtonState();
+                }
             } else {
                 checkAndRequestStoragePermission();
                 Toast.makeText(this, "Please grant storage permission first", Toast.LENGTH_SHORT).show();
             }
         });
+    }
+
+    private void updateStartButtonState() {
+        boolean ready = nativeLibraryLoaded && hasStoragePermission() && soFilePath != null && metadataFilePath != null;
+        btnStartDump.setEnabled(ready);
+        if (!nativeLibraryLoaded) {
+            btnStartDump.setText("Native Lib Not Loaded");
+        } else if (!hasStoragePermission()) {
+            btnStartDump.setText("Grant Storage Permission");
+        } else if (soFilePath == null || metadataFilePath == null) {
+            btnStartDump.setText("Select Files First");
+        } else {
+            btnStartDump.setText("Start Dump");
+        }
     }
 
     private boolean hasStoragePermission() {
@@ -242,7 +297,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void checkFilesSelected() {
         boolean bothSelected = soFilePath != null && metadataFilePath != null;
-        btnStartDump.setEnabled(bothSelected);
+        updateStartButtonState();
         if (bothSelected) {
             tvStatus.setText("Ready to dump");
             tvStatus.setTextColor(getColor(R.color.infoBlue));
@@ -261,6 +316,11 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        if (!nativeLibraryLoaded) {
+            Toast.makeText(this, "Native library not loaded!", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         // Set output path to /storage/emulated/0/DumpedOutput/
         File outputDir = new File(Environment.getExternalStorageDirectory(), "DumpedOutput");
         if (!outputDir.exists()) {
@@ -273,6 +333,8 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         outputFilePath = new File(outputDir, "dump.cs").getAbsolutePath();
+
+        Log.i(TAG, "Starting dump to: " + outputFilePath);
 
         // Update UI
         btnStartDump.setEnabled(false);
@@ -287,7 +349,10 @@ public class MainActivity extends AppCompatActivity {
         executorService.execute(() -> {
             try {
                 // Initialize dumper
+                Log.i(TAG, "Calling initDumper...");
                 int initResult = initDumper(soFilePath, metadataFilePath);
+                Log.i(TAG, "initDumper returned: " + initResult);
+                
                 if (initResult != 0) {
                     runOnUiThread(() -> {
                         tvStatus.setText(R.string.dump_failed + ": Init failed (" + initResult + ")");
@@ -301,7 +366,10 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(this::updateDumpInfo);
 
                 // Start dump
+                Log.i(TAG, "Calling startDump...");
                 int dumpResult = startDump(outputFilePath);
+                Log.i(TAG, "startDump returned: " + dumpResult);
+                
                 if (dumpResult == 0) {
                     runOnUiThread(() -> {
                         tvStatus.setText(R.string.dump_complete);
@@ -318,8 +386,17 @@ public class MainActivity extends AppCompatActivity {
                         resetUI();
                     });
                 }
+            } catch (UnsatisfiedLinkError e) {
+                Log.e(TAG, "UnsatisfiedLinkError: " + e.getMessage());
+                runOnUiThread(() -> {
+                    tvStatus.setText("Native library error: " + e.getMessage());
+                    tvStatus.setTextColor(getColor(R.color.colorError));
+                    nativeLibraryLoaded = false;
+                    updateStartButtonState();
+                    resetUI();
+                });
             } catch (Exception e) {
-                Log.e(TAG, "Dump error: " + e.getMessage());
+                Log.e(TAG, "Dump error: " + e.getMessage(), e);
                 runOnUiThread(() -> {
                     tvStatus.setText(R.string.dump_failed + ": " + e.getMessage());
                     tvStatus.setTextColor(getColor(R.color.colorError));
@@ -330,11 +407,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateDumpInfo() {
-        tvUnityVersion.setText(getString(R.string.unity_version) + getUnityVersion());
-        tvAssemblyCount.setText(getString(R.string.assembly_count) + getAssemblyCount());
-        tvTypeCount.setText(getString(R.string.type_count) + getTypeCount());
-        tvMethodCount.setText(getString(R.string.method_count) + getMethodCount());
-        tvFieldCount.setText(getString(R.string.field_count) + getFieldCount());
+        try {
+            tvUnityVersion.setText(getString(R.string.unity_version) + getUnityVersion());
+            tvAssemblyCount.setText(getString(R.string.assembly_count) + getAssemblyCount());
+            tvTypeCount.setText(getString(R.string.type_count) + getTypeCount());
+            tvMethodCount.setText(getString(R.string.method_count) + getMethodCount());
+            tvFieldCount.setText(getString(R.string.field_count) + getFieldCount());
+        } catch (Exception e) {
+            Log.e(TAG, "updateDumpInfo error: " + e.getMessage());
+        }
     }
 
     private void resetUI() {
@@ -342,12 +423,17 @@ public class MainActivity extends AppCompatActivity {
         btnSelectSoFile.setEnabled(true);
         btnSelectMetadataFile.setEnabled(true);
         progressBar.setVisibility(View.GONE);
+        updateStartButtonState();
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        cleanup();
+        try {
+            cleanup();
+        } catch (Exception e) {
+            Log.e(TAG, "cleanup error: " + e.getMessage());
+        }
         executorService.shutdown();
     }
 }
