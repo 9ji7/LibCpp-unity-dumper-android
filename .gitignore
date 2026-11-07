@@ -29,7 +29,7 @@ Thumbs.db
 *.keystore
 
 # Gradle wrapper
-gradle/wrapper/gradle-wrapper.jar
+# gradle/wrapper/gradle-wrapper.jar (committed for CI)
 
 # Native libs
 *.so
