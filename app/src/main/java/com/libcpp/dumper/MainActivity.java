@@ -361,7 +361,7 @@ public class MainActivity extends AppCompatActivity {
 
                 if (initResult != 0) {
                     runOnUiThread(() -> {
-                        tvStatus.setText(R.string.dump_failed + ": Init failed (" + initResult + ")");
+                        tvStatus.setText(getString(R.string.dump_failed) + ": Init failed (" + initResult + ")");
                         tvStatus.setTextColor(getColor(R.color.colorError));
                         resetUI();
                     });
