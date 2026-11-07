@@ -99,9 +99,10 @@ bool Il2CppDumper::parseMetadata(const char* metadataPath) {
     
     adjustForVersion();
 
-    LOGI("Parsed: %zu strings, %zu assemblies, %zu images, %zu types, %zu methods, %zu fields, %zu properties, %zu events",
-         strings_.size(), assemblies_.size(), images_.size(), typeDefs_.size(),
-         methodDefs_.size(), fieldDefs_.size(), propertyDefs_.size(), eventDefs_.size());
+    LOGI("PARSED COUNTS: assemblies=%zu, images=%zu, types=%zu, methods=%zu, fields=%zu, properties=%zu, events=%zu, params=%zu, generics=%zu",
+         assemblies_.size(), images_.size(), typeDefs_.size(),
+         methodDefs_.size(), fieldDefs_.size(), propertyDefs_.size(), eventDefs_.size(),
+         parameterDefs_.size(), genericParameters_.size());
 
     return true;
 }
@@ -726,19 +727,27 @@ const char* Il2CppDumper::getUnityVersion() const {
 }
 
 int Il2CppDumper::getAssemblyCount() const {
-    return static_cast<int>(assemblies_.size());
+    int count = static_cast<int>(assemblies_.size());
+    LOGI("getAssemblyCount: %d", count);
+    return count;
 }
 
 int Il2CppDumper::getTypeCount() const {
-    return static_cast<int>(typeDefs_.size());
+    int count = static_cast<int>(typeDefs_.size());
+    LOGI("getTypeCount: %d", count);
+    return count;
 }
 
 int Il2CppDumper::getMethodCount() const {
-    return static_cast<int>(methodDefs_.size());
+    int count = static_cast<int>(methodDefs_.size());
+    LOGI("getMethodCount: %d", count);
+    return count;
 }
 
 int Il2CppDumper::getFieldCount() const {
-    return static_cast<int>(fieldDefs_.size());
+    int count = static_cast<int>(fieldDefs_.size());
+    LOGI("getFieldCount: %d", count);
+    return count;
 }
 
 int Il2CppDumper::dump(const char* outputPath) {

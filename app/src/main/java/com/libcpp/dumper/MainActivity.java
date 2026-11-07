@@ -7,6 +7,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
@@ -377,7 +379,10 @@ public class MainActivity extends AppCompatActivity {
                         tvOutputPath.setText("Output: " + outputFilePath);
                         tvOutputPath.setVisibility(View.VISIBLE);
                         resetUI();
-                        Toast.makeText(this, "Dump saved to: " + outputFilePath, Toast.LENGTH_LONG).show();
+                        // Show toast after UI reset to ensure it appears
+                        new Handler(Looper.getMainLooper()).post(() -> 
+                            Toast.makeText(MainActivity.this, "Dump saved to: " + outputFilePath, Toast.LENGTH_LONG).show()
+                        );
                     });
                 } else {
                     runOnUiThread(() -> {
@@ -408,13 +413,22 @@ public class MainActivity extends AppCompatActivity {
 
     private void updateDumpInfo() {
         try {
-            tvUnityVersion.setText(getString(R.string.unity_version) + getUnityVersion());
-            tvAssemblyCount.setText(getString(R.string.assembly_count) + getAssemblyCount());
-            tvTypeCount.setText(getString(R.string.type_count) + getTypeCount());
-            tvMethodCount.setText(getString(R.string.method_count) + getMethodCount());
-            tvFieldCount.setText(getString(R.string.field_count) + getFieldCount());
+            String unityVer = getUnityVersion();
+            int asmCount = getAssemblyCount();
+            int typeCount = getTypeCount();
+            int methodCount = getMethodCount();
+            int fieldCount = getFieldCount();
+            
+            Log.d(TAG, "updateDumpInfo: unity=" + unityVer + ", assemblies=" + asmCount + 
+                  ", types=" + typeCount + ", methods=" + methodCount + ", fields=" + fieldCount);
+            
+            tvUnityVersion.setText(getString(R.string.unity_version) + unityVer);
+            tvAssemblyCount.setText(getString(R.string.assembly_count) + asmCount);
+            tvTypeCount.setText(getString(R.string.type_count) + typeCount);
+            tvMethodCount.setText(getString(R.string.method_count) + methodCount);
+            tvFieldCount.setText(getString(R.string.field_count) + fieldCount);
         } catch (Exception e) {
-            Log.e(TAG, "updateDumpInfo error: " + e.getMessage());
+            Log.e(TAG, "updateDumpInfo error: " + e.getMessage(), e);
         }
     }
 
