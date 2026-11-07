@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">LibCpp Unity Dumper</string>
+    <string name="select_so_file">Select libil2cpp.so</string>
+    <string name="select_metadata_file">Select global-metadata.dat</string>
+    <string name="start_dump">Start Dump</string>
+    <string name="dumping">Dumping...</string>
+    <string name="dump_complete">Dump Complete!</string>
+    <string name="dump_failed">Dump Failed</string>
+    <string name="output_file">Output: dump.cs</string>
+    <string name="select_files_first">Please select both files first</string>
+    <string name="so_file_selected">libil2cpp.so selected</string>
+    <string name="metadata_file_selected">global-metadata.dat selected</string>
+    <string name="unity_version">Unity Version: </string>
+    <string name="assembly_count">Assemblies: </string>
+    <string name="type_count">Types: </string>
+    <string name="method_count">Methods: </string>
+    <string name="field_count">Fields: </string>
+</resources>

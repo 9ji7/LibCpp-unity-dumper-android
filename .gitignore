@@ -1,0 +1,43 @@
+# Gradle
+.gradle/
+build/
+/*/build/
+/*/build/
+!/**/src/main/**/build/
+
+# Local configuration
+local.properties
+gradle.properties.user
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# APK
+*.apk
+*.ap_
+
+# JKS
+*.jks
+*.keystore
+
+# Gradle wrapper
+gradle/wrapper/gradle-wrapper.jar
+
+# Native libs
+*.so
+!/src/main/jniLibs/**/*.so
+
+# Build outputs
+app/build/
+*.apk
+
+# Logs
+*.log
