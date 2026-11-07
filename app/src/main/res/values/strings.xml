@@ -15,4 +15,8 @@
     <string name="type_count">Types: </string>
     <string name="method_count">Methods: </string>
     <string name="field_count">Fields: </string>
+    <string name="permission_storage_rationale">This app needs storage access to save the dump.cs file to /storage/emulated/0/DumpedOutput/</string>
+    <string name="permission_manage_storage_rationale">This app needs \"All files access\" permission to save the dump.cs file to the DumpedOutput folder on shared storage</string>
+    <string name="storage_permission_denied">Storage permission denied. Cannot save dump file.</string>
+    <string name="output_folder">DumpedOutput</string>
 </resources>

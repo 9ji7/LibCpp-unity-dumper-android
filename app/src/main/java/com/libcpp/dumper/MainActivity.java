@@ -2,9 +2,12 @@ package com.libcpp.dumper;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -15,7 +18,8 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.content.FileProvider;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -26,6 +30,7 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "LibCppDumper";
+    private static final int REQUEST_MANAGE_EXTERNAL_STORAGE = 1001;
 
     // Native methods
     public native int initDumper(String soPath, String metadataPath);
@@ -61,6 +66,10 @@ public class MainActivity extends AppCompatActivity {
     private ActivityResultLauncher<Intent> soFilePickerLauncher;
     private ActivityResultLauncher<Intent> metadataFilePickerLauncher;
 
+    // Permission launchers
+    private ActivityResultLauncher<String> requestPermissionLauncher;
+    private ActivityResultLauncher<Intent> manageStorageLauncher;
+
     // Executor for background tasks
     private ExecutorService executorService = Executors.newSingleThreadExecutor();
 
@@ -71,6 +80,8 @@ public class MainActivity extends AppCompatActivity {
 
         initViews();
         initFilePickers();
+        initPermissionLaunchers();
+        checkAndRequestStoragePermission();
         setupClickListeners();
     }
 
@@ -126,6 +137,57 @@ public class MainActivity extends AppCompatActivity {
         );
     }
 
+    private void initPermissionLaunchers() {
+        requestPermissionLauncher = registerForActivityResult(
+            new ActivityResultContracts.RequestPermission(),
+            granted -> {
+                if (granted) {
+                    tvStatus.setText("Storage permission granted");
+                    tvStatus.setTextColor(getColor(R.color.successGreen));
+                } else {
+                    tvStatus.setText("Storage permission denied - dump may fail");
+                    tvStatus.setTextColor(getColor(R.color.colorError));
+                }
+            }
+        );
+
+        manageStorageLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    if (Environment.isExternalStorageManager()) {
+                        tvStatus.setText("Manage storage permission granted");
+                        tvStatus.setTextColor(getColor(R.color.successGreen));
+                    } else {
+                        tvStatus.setText("Manage storage permission denied");
+                        tvStatus.setTextColor(getColor(R.color.colorError));
+                    }
+                }
+            }
+        );
+    }
+
+    private void checkAndRequestStoragePermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Android 11+ (API 30+): Need MANAGE_EXTERNAL_STORAGE
+            if (!Environment.isExternalStorageManager()) {
+                tvStatus.setText("Requesting storage management permission...");
+                tvStatus.setTextColor(getColor(R.color.warningOrange));
+                Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+                intent.setData(Uri.parse("package:" + getPackageName()));
+                manageStorageLauncher.launch(intent);
+            }
+        } else {
+            // Android 10 and below: Need WRITE_EXTERNAL_STORAGE
+            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    != PackageManager.PERMISSION_GRANTED) {
+                tvStatus.setText("Requesting storage permission...");
+                tvStatus.setTextColor(getColor(R.color.warningOrange));
+                requestPermissionLauncher.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE);
+            }
+        }
+    }
+
     private String copyFileToAppDir(Uri uri, String filename) {
         try {
             File destFile = new File(getFilesDir(), filename);
@@ -150,7 +212,24 @@ public class MainActivity extends AppCompatActivity {
 
         btnSelectMetadataFile.setOnClickListener(v -> openFilePicker(metadataFilePickerLauncher, "application/octet-stream", "Select global-metadata.dat"));
 
-        btnStartDump.setOnClickListener(v -> startDump());
+        btnStartDump.setOnClickListener(v -> {
+            // Re-check permission before dumping
+            if (hasStoragePermission()) {
+                startDump();
+            } else {
+                checkAndRequestStoragePermission();
+                Toast.makeText(this, "Please grant storage permission first", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private boolean hasStoragePermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            return Environment.isExternalStorageManager();
+        } else {
+            return ContextCompat.checkSelfPermission(this, android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    == PackageManager.PERMISSION_GRANTED;
+        }
     }
 
     private void openFilePicker(ActivityResultLauncher<Intent> launcher, String mimeType, String title) {
@@ -176,10 +255,22 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        // Set output path
-        File outputDir = new File(getFilesDir(), "dumps");
+        if (!hasStoragePermission()) {
+            Toast.makeText(this, "Storage permission required", Toast.LENGTH_SHORT).show();
+            checkAndRequestStoragePermission();
+            return;
+        }
+
+        // Set output path to /storage/emulated/0/DumpedOutput/
+        File outputDir = new File(Environment.getExternalStorageDirectory(), "DumpedOutput");
         if (!outputDir.exists()) {
-            outputDir.mkdirs();
+            boolean created = outputDir.mkdirs();
+            if (!created) {
+                // Fallback to app-specific external directory
+                outputDir = new File(getExternalFilesDir(null), "DumpedOutput");
+                outputDir.mkdirs();
+                Toast.makeText(this, "Using app-specific external storage", Toast.LENGTH_SHORT).show();
+            }
         }
         outputFilePath = new File(outputDir, "dump.cs").getAbsolutePath();
 
