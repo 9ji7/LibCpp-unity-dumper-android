@@ -379,16 +379,21 @@ public class MainActivity extends AppCompatActivity {
                         tvOutputPath.setText("Output: " + outputFilePath);
                         tvOutputPath.setVisibility(View.VISIBLE);
                         resetUI();
-                        // Show toast after UI reset to ensure it appears
+                        // Toast 1: Direct
+                        Toast.makeText(MainActivity.this, "Dump saved to: " + outputFilePath, Toast.LENGTH_LONG).show();
+                        // Toast 2: Via Handler (backup)
                         new Handler(Looper.getMainLooper()).post(() -> 
-                            Toast.makeText(MainActivity.this, "Dump saved to: " + outputFilePath, Toast.LENGTH_LONG).show()
+                            Toast.makeText(MainActivity.this, "Dump completed successfully!", Toast.LENGTH_LONG).show()
                         );
+                        Log.i(TAG, "Dump success toast shown");
                     });
                 } else {
                     runOnUiThread(() -> {
                         tvStatus.setText(R.string.dump_failed + ": Dump failed (" + dumpResult + ")");
                         tvStatus.setTextColor(getColor(R.color.colorError));
                         resetUI();
+                        Toast.makeText(MainActivity.this, "Dump failed with code: " + dumpResult, Toast.LENGTH_LONG).show();
+                        Log.i(TAG, "Dump failed toast shown, code: " + dumpResult);
                     });
                 }
             } catch (UnsatisfiedLinkError e) {
