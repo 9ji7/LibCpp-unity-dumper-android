@@ -8,8 +8,6 @@ add_library(
     libcppdumper
     SHARED
     il2cpp_dumper.cpp
-    metadata_parser.cpp
-    dump_writer.cpp
 )
 
 find_library(
