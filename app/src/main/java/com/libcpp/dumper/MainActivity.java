@@ -7,17 +7,12 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
-import android.os.Handler;
-import android.os.Looper;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.TextView;
-import android.widget.Toast;
-
-import com.google.android.material.snackbar.Snackbar;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -50,7 +45,6 @@ public class MainActivity extends AppCompatActivity {
     private Button btnSelectSoFile;
     private Button btnSelectMetadataFile;
     private Button btnStartDump;
-    private Button btnTestToast;
     private TextView tvSoFilePath;
     private TextView tvMetadataFilePath;
     private TextView tvUnityVersion;
@@ -78,9 +72,6 @@ public class MainActivity extends AppCompatActivity {
     // Native library loaded flag
     private boolean nativeLibraryLoaded = false;
 
-    // Main thread handler for reliable UI operations
-    private final Handler mainHandler = new Handler(Looper.getMainLooper());
-
     // Executor for background tasks
     private ExecutorService executorService = Executors.newSingleThreadExecutor();
 
@@ -91,7 +82,7 @@ public class MainActivity extends AppCompatActivity {
 
         // Check if native library is loaded
         checkNativeLibrary();
-        
+
         initViews();
         initFilePickers();
         initPermissionLaunchers();
@@ -120,7 +111,6 @@ public class MainActivity extends AppCompatActivity {
         btnSelectSoFile = findViewById(R.id.btnSelectSoFile);
         btnSelectMetadataFile = findViewById(R.id.btnSelectMetadataFile);
         btnStartDump = findViewById(R.id.btnStartDump);
-        btnTestToast = findViewById(R.id.btnTestToast);
         tvSoFilePath = findViewById(R.id.soFilePath);
         tvMetadataFilePath = findViewById(R.id.metadataFilePath);
         tvUnityVersion = findViewById(R.id.tvUnityVersion);
@@ -239,7 +229,8 @@ public class MainActivity extends AppCompatActivity {
             return destFile.getAbsolutePath();
         } catch (Exception e) {
             Log.e(TAG, "Failed to copy file: " + e.getMessage());
-            Toast.makeText(this, "Failed to copy file: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            tvStatus.setText("Failed to copy file: " + e.getMessage());
+            tvStatus.setTextColor(getColor(R.color.colorError));
             return null;
         }
     }
@@ -262,24 +253,15 @@ public class MainActivity extends AppCompatActivity {
                 if (nativeLibraryLoaded) {
                     startDump();
                 } else {
-                    Toast.makeText(this, "Native library not loaded! Check logs.", Toast.LENGTH_LONG).show();
+                    tvStatus.setText("Native library not loaded! Check logs.");
+                    tvStatus.setTextColor(getColor(R.color.colorError));
                     checkNativeLibrary();
                     updateStartButtonState();
                 }
             } else {
                 checkAndRequestStoragePermission();
-                Toast.makeText(this, "Please grant storage permission first", Toast.LENGTH_SHORT).show();
-            }
-        });
-
-        btnTestToast.setOnClickListener(v -> {
-            Log.d(TAG, "Test Toast button clicked");
-            showToast("Test Toast from button click!");
-            showToastSafe("Test Toast Safe - also working!");
-            // Also try Snackbar as more visible alternative
-            View rootView = findViewById(android.R.id.content);
-            if (rootView != null) {
-                com.google.android.material.snackbar.Snackbar.make(rootView, "Snackbar test - visible at bottom!", com.google.android.material.snackbar.Snackbar.LENGTH_LONG).show();
+                tvStatus.setText("Please grant storage permission first");
+                tvStatus.setTextColor(getColor(R.color.warningOrange));
             }
         });
     }
@@ -326,18 +308,21 @@ public class MainActivity extends AppCompatActivity {
 
     private void startDump() {
         if (soFilePath == null || metadataFilePath == null) {
-            Toast.makeText(this, R.string.select_files_first, Toast.LENGTH_SHORT).show();
+            tvStatus.setText("Please select both files first");
+            tvStatus.setTextColor(getColor(R.color.colorError));
             return;
         }
 
         if (!hasStoragePermission()) {
-            Toast.makeText(this, "Storage permission required", Toast.LENGTH_SHORT).show();
+            tvStatus.setText("Storage permission required");
+            tvStatus.setTextColor(getColor(R.color.colorError));
             checkAndRequestStoragePermission();
             return;
         }
 
         if (!nativeLibraryLoaded) {
-            Toast.makeText(this, "Native library not loaded!", Toast.LENGTH_SHORT).show();
+            tvStatus.setText("Native library not loaded!");
+            tvStatus.setTextColor(getColor(R.color.colorError));
             return;
         }
 
@@ -349,7 +334,8 @@ public class MainActivity extends AppCompatActivity {
                 // Fallback to app-specific external directory
                 outputDir = new File(getExternalFilesDir(null), "DumpedOutput");
                 outputDir.mkdirs();
-                Toast.makeText(this, "Using app-specific external storage", Toast.LENGTH_SHORT).show();
+                tvStatus.setText("Using app-specific external storage");
+                tvStatus.setTextColor(getColor(R.color.warningOrange));
             }
         }
         outputFilePath = new File(outputDir, "dump.cs").getAbsolutePath();
@@ -372,7 +358,7 @@ public class MainActivity extends AppCompatActivity {
                 Log.i(TAG, "Calling initDumper...");
                 int initResult = initDumper(soFilePath, metadataFilePath);
                 Log.i(TAG, "initDumper returned: " + initResult);
-                
+
                 if (initResult != 0) {
                     runOnUiThread(() -> {
                         tvStatus.setText(R.string.dump_failed + ": Init failed (" + initResult + ")");
@@ -389,26 +375,20 @@ public class MainActivity extends AppCompatActivity {
                 Log.i(TAG, "Calling startDump...");
                 int dumpResult = startDump(outputFilePath);
                 Log.i(TAG, "startDump returned: " + dumpResult);
-                
+
                 if (dumpResult == 0) {
                     runOnUiThread(() -> {
-                        tvStatus.setText(R.string.dump_complete);
+                        tvStatus.setText("Dump completed successfully!");
                         tvStatus.setTextColor(getColor(R.color.successGreen));
                         tvOutputPath.setText("Output: " + outputFilePath);
                         tvOutputPath.setVisibility(View.VISIBLE);
                         resetUI();
-                        // Use robust toast helpers
-                        showToast("Dump saved to: " + outputFilePath);
-                        showToastSafe("Dump completed successfully!");
-                        Log.i(TAG, "Dump success toast helpers called");
                     });
                 } else {
                     runOnUiThread(() -> {
-                        tvStatus.setText(R.string.dump_failed + ": Dump failed (" + dumpResult + ")");
+                        tvStatus.setText("Dump failed with code: " + dumpResult);
                         tvStatus.setTextColor(getColor(R.color.colorError));
                         resetUI();
-                        showToast("Dump failed with code: " + dumpResult);
-                        Log.i(TAG, "Dump failed toast helper called, code: " + dumpResult);
                     });
                 }
             } catch (UnsatisfiedLinkError e) {
@@ -423,7 +403,7 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception e) {
                 Log.e(TAG, "Dump error: " + e.getMessage(), e);
                 runOnUiThread(() -> {
-                    tvStatus.setText(R.string.dump_failed + ": " + e.getMessage());
+                    tvStatus.setText("Dump failed: " + e.getMessage());
                     tvStatus.setTextColor(getColor(R.color.colorError));
                     resetUI();
                 });
@@ -445,10 +425,10 @@ public class MainActivity extends AppCompatActivity {
             int typeCount = getTypeCount();
             int methodCount = getMethodCount();
             int fieldCount = getFieldCount();
-            
-            Log.d(TAG, "updateDumpInfo: unity=" + unityVer + ", assemblies=" + asmCount + 
+
+            Log.d(TAG, "updateDumpInfo: unity=" + unityVer + ", assemblies=" + asmCount +
                   ", types=" + typeCount + ", methods=" + methodCount + ", fields=" + fieldCount);
-            
+
             tvUnityVersion.setText(getString(R.string.unity_version) + unityVer);
             tvAssemblyCount.setText(getString(R.string.assembly_count) + asmCount);
             tvTypeCount.setText(getString(R.string.type_count) + typeCount);
@@ -456,66 +436,6 @@ public class MainActivity extends AppCompatActivity {
             tvFieldCount.setText(getString(R.string.field_count) + fieldCount);
         } catch (Exception e) {
             Log.e(TAG, "updateDumpInfo error: " + e.getMessage(), e);
-        }
-    }
-
-    private void showToast(final String message) {
-        Log.d(TAG, "showToast called: " + message);
-        if (isFinishing() || isDestroyed()) {
-            Log.w(TAG, "Activity finishing/destroyed, skipping toast");
-            return;
-        }
-        runOnUiThread(() -> {
-            Log.d(TAG, "showToast running on UI thread");
-            if (isFinishing() || isDestroyed()) {
-                Log.w(TAG, "Activity finishing/destroyed in runOnUiThread, skipping toast");
-                return;
-            }
-            try {
-                Toast toast = Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG);
-                toast.show();
-                Log.d(TAG, "Toast.show() called successfully");
-            } catch (Exception e) {
-                Log.e(TAG, "Toast failed: " + e.getMessage(), e);
-            }
-        });
-    }
-
-    private void showToastSafe(final String message) {
-        Log.d(TAG, "showToastSafe called: " + message);
-        if (isFinishing() || isDestroyed()) {
-            Log.w(TAG, "Activity finishing/destroyed, skipping toast");
-            return;
-        }
-        // Use View.post as alternative to runOnUiThread
-        View rootView = findViewById(android.R.id.content);
-        if (rootView != null) {
-            rootView.post(() -> {
-                Log.d(TAG, "showToastSafe running via View.post");
-                if (isFinishing() || isDestroyed()) return;
-                try {
-                    Toast toast = Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG);
-                    toast.show();
-                    Log.d(TAG, "Toast.show() via View.post called successfully");
-                } catch (Exception e) {
-                    Log.e(TAG, "Toast via View.post failed: " + e.getMessage(), e);
-                }
-            });
-        } else {
-            // Fallback to mainHandler (created on main thread)
-            mainHandler.post(() -> {
-                Log.d(TAG, "showToastSafe running via mainHandler");
-                if (isFinishing() || isDestroyed()) return;
-                try {
-                    Toast toast = Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG);
-                    toast.show();
-                    Log.d(TAG, "Toast.show() via mainHandler called successfully");
-                } catch (Exception e) {
-                    Log.e(TAG, "Toast via mainHandler failed: " + e.getMessage(), e);
-                }
-            });
-        }
-    }
         }
     }
 
