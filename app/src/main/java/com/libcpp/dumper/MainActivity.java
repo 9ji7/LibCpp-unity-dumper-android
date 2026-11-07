@@ -17,6 +17,8 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.android.material.snackbar.Snackbar;
+
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
@@ -48,6 +50,7 @@ public class MainActivity extends AppCompatActivity {
     private Button btnSelectSoFile;
     private Button btnSelectMetadataFile;
     private Button btnStartDump;
+    private Button btnTestToast;
     private TextView tvSoFilePath;
     private TextView tvMetadataFilePath;
     private TextView tvUnityVersion;
@@ -74,6 +77,9 @@ public class MainActivity extends AppCompatActivity {
 
     // Native library loaded flag
     private boolean nativeLibraryLoaded = false;
+
+    // Main thread handler for reliable UI operations
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     // Executor for background tasks
     private ExecutorService executorService = Executors.newSingleThreadExecutor();
@@ -114,6 +120,7 @@ public class MainActivity extends AppCompatActivity {
         btnSelectSoFile = findViewById(R.id.btnSelectSoFile);
         btnSelectMetadataFile = findViewById(R.id.btnSelectMetadataFile);
         btnStartDump = findViewById(R.id.btnStartDump);
+        btnTestToast = findViewById(R.id.btnTestToast);
         tvSoFilePath = findViewById(R.id.soFilePath);
         tvMetadataFilePath = findViewById(R.id.metadataFilePath);
         tvUnityVersion = findViewById(R.id.tvUnityVersion);
@@ -264,6 +271,17 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, "Please grant storage permission first", Toast.LENGTH_SHORT).show();
             }
         });
+
+        btnTestToast.setOnClickListener(v -> {
+            Log.d(TAG, "Test Toast button clicked");
+            showToast("Test Toast from button click!");
+            showToastSafe("Test Toast Safe - also working!");
+            // Also try Snackbar as more visible alternative
+            View rootView = findViewById(android.R.id.content);
+            if (rootView != null) {
+                com.google.android.material.snackbar.Snackbar.make(rootView, "Snackbar test - visible at bottom!", com.google.android.material.snackbar.Snackbar.LENGTH_LONG).show();
+            }
+        });
     }
 
     private void updateStartButtonState() {
@@ -409,6 +427,13 @@ public class MainActivity extends AppCompatActivity {
                     tvStatus.setTextColor(getColor(R.color.colorError));
                     resetUI();
                 });
+            } catch (Throwable t) {
+                Log.e(TAG, "Dump fatal error: " + t.getMessage(), t);
+                runOnUiThread(() -> {
+                    tvStatus.setText("Fatal error: " + t.getMessage());
+                    tvStatus.setTextColor(getColor(R.color.colorError));
+                    resetUI();
+                });
             }
         });
     }
@@ -477,18 +502,20 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
         } else {
-            // Fallback to Handler
-            new Handler(Looper.getMainLooper()).post(() -> {
-                Log.d(TAG, "showToastSafe running via Handler");
+            // Fallback to mainHandler (created on main thread)
+            mainHandler.post(() -> {
+                Log.d(TAG, "showToastSafe running via mainHandler");
                 if (isFinishing() || isDestroyed()) return;
                 try {
                     Toast toast = Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG);
                     toast.show();
-                    Log.d(TAG, "Toast.show() via Handler called successfully");
+                    Log.d(TAG, "Toast.show() via mainHandler called successfully");
                 } catch (Exception e) {
-                    Log.e(TAG, "Toast via Handler failed: " + e.getMessage(), e);
+                    Log.e(TAG, "Toast via mainHandler failed: " + e.getMessage(), e);
                 }
             });
+        }
+    }
         }
     }
 
