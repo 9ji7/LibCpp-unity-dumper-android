@@ -379,21 +379,18 @@ public class MainActivity extends AppCompatActivity {
                         tvOutputPath.setText("Output: " + outputFilePath);
                         tvOutputPath.setVisibility(View.VISIBLE);
                         resetUI();
-                        // Toast 1: Direct
-                        Toast.makeText(MainActivity.this, "Dump saved to: " + outputFilePath, Toast.LENGTH_LONG).show();
-                        // Toast 2: Via Handler (backup)
-                        new Handler(Looper.getMainLooper()).post(() -> 
-                            Toast.makeText(MainActivity.this, "Dump completed successfully!", Toast.LENGTH_LONG).show()
-                        );
-                        Log.i(TAG, "Dump success toast shown");
+                        // Use robust toast helpers
+                        showToast("Dump saved to: " + outputFilePath);
+                        showToastSafe("Dump completed successfully!");
+                        Log.i(TAG, "Dump success toast helpers called");
                     });
                 } else {
                     runOnUiThread(() -> {
                         tvStatus.setText(R.string.dump_failed + ": Dump failed (" + dumpResult + ")");
                         tvStatus.setTextColor(getColor(R.color.colorError));
                         resetUI();
-                        Toast.makeText(MainActivity.this, "Dump failed with code: " + dumpResult, Toast.LENGTH_LONG).show();
-                        Log.i(TAG, "Dump failed toast shown, code: " + dumpResult);
+                        showToast("Dump failed with code: " + dumpResult);
+                        Log.i(TAG, "Dump failed toast helper called, code: " + dumpResult);
                     });
                 }
             } catch (UnsatisfiedLinkError e) {
@@ -434,6 +431,64 @@ public class MainActivity extends AppCompatActivity {
             tvFieldCount.setText(getString(R.string.field_count) + fieldCount);
         } catch (Exception e) {
             Log.e(TAG, "updateDumpInfo error: " + e.getMessage(), e);
+        }
+    }
+
+    private void showToast(final String message) {
+        Log.d(TAG, "showToast called: " + message);
+        if (isFinishing() || isDestroyed()) {
+            Log.w(TAG, "Activity finishing/destroyed, skipping toast");
+            return;
+        }
+        runOnUiThread(() -> {
+            Log.d(TAG, "showToast running on UI thread");
+            if (isFinishing() || isDestroyed()) {
+                Log.w(TAG, "Activity finishing/destroyed in runOnUiThread, skipping toast");
+                return;
+            }
+            try {
+                Toast toast = Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG);
+                toast.show();
+                Log.d(TAG, "Toast.show() called successfully");
+            } catch (Exception e) {
+                Log.e(TAG, "Toast failed: " + e.getMessage(), e);
+            }
+        });
+    }
+
+    private void showToastSafe(final String message) {
+        Log.d(TAG, "showToastSafe called: " + message);
+        if (isFinishing() || isDestroyed()) {
+            Log.w(TAG, "Activity finishing/destroyed, skipping toast");
+            return;
+        }
+        // Use View.post as alternative to runOnUiThread
+        View rootView = findViewById(android.R.id.content);
+        if (rootView != null) {
+            rootView.post(() -> {
+                Log.d(TAG, "showToastSafe running via View.post");
+                if (isFinishing() || isDestroyed()) return;
+                try {
+                    Toast toast = Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG);
+                    toast.show();
+                    Log.d(TAG, "Toast.show() via View.post called successfully");
+                } catch (Exception e) {
+                    Log.e(TAG, "Toast via View.post failed: " + e.getMessage(), e);
+                }
+            });
+        } else {
+            // Fallback to Handler
+            new Handler(Looper.getMainLooper()).post(() -> {
+                Log.d(TAG, "showToastSafe running via Handler");
+                if (isFinishing() || isDestroyed()) return;
+                try {
+                    Toast toast = Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG);
+                    toast.show();
+                    Log.d(TAG, "Toast.show() via Handler called successfully");
+                } catch (Exception e) {
+                    Log.e(TAG, "Toast via Handler failed: " + e.getMessage(), e);
+                }
+            });
         }
     }
 
