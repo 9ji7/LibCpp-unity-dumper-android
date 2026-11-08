@@ -261,16 +261,28 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        // Set output path to /storage/emulated/0/DumpedOutput/
-        File outputDir = new File(Environment.getExternalStorageDirectory(), "DumpedOutput");
-        if (!outputDir.exists()) {
-            boolean created = outputDir.mkdirs();
+        // Set output path to /storage/emulated/0/DumpedOutput/DumpX/
+        File baseOutputDir = new File(Environment.getExternalStorageDirectory(), "DumpedOutput");
+        if (!baseOutputDir.exists()) {
+            boolean created = baseOutputDir.mkdirs();
             if (!created) {
                 // Fallback to app-specific external directory
-                outputDir = new File(getExternalFilesDir(null), "DumpedOutput");
-                outputDir.mkdirs();
+                baseOutputDir = new File(getExternalFilesDir(null), "DumpedOutput");
+                baseOutputDir.mkdirs();
                 Toast.makeText(this, "Using app-specific external storage", Toast.LENGTH_SHORT).show();
             }
+        }
+
+        // Create numbered dump folder (Dump0, Dump1, etc.)
+        int dumpIndex = 0;
+        File outputDir;
+        while (true) {
+            outputDir = new File(baseOutputDir, "Dump" + dumpIndex);
+            if (!outputDir.exists()) {
+                outputDir.mkdirs();
+                break;
+            }
+            dumpIndex++;
         }
         outputFilePath = new File(outputDir, "dump.cs").getAbsolutePath();
 
